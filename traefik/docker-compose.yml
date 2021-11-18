@@ -1,0 +1,59 @@
+version: "3.9"
+
+networks:
+  network_traefik:
+    name: network_traefik
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "172.33.0.0/16"
+        
+services:
+
+  traefik_service:
+    image: traefik:latest
+    container_name: traefik_service
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      network_traefik:
+          ipv4_address: 172.33.0.2
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/traefik.yml:/traefik.yml:ro
+      - ./datas/acme.json:/acme.json
+      - ./config.d:/config.d
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=network_traefik"
+      # Dashboard
+      - "traefik.http.routers.traefik-secure.rule=Host(`${DOMAIN_NAME}`)"
+      - "traefik.http.routers.traefik-secure.entrypoints=websecure"
+      - "traefik.http.middlewares.my-auth.basicauth.users=${PANEL_ADMIN_USER}"
+      - "traefik.http.routers.traefik-secure.middlewares=my-auth"
+      - "traefik.http.routers.traefik-secure.service=api@internal"
+      # global redirect to https
+      - "traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.entrypoints=web"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+  traefik_certs:
+    container_name: traefik_certs
+    image: ldez/traefik-certs-dumper:v2.7.4
+    entrypoint: sh -c '
+      apk add jq
+      ; while ! [ -e /data/acme.json ]
+      || ! [ `jq ".[] | .Certificates | length" /data/acme.json` != 0 ]; do
+      sleep 1
+      ; done
+      && traefik-certs-dumper file --domain-subdir --crt-name=fullchain --key-name=privkey --version v2 --watch
+      --source /data/acme.json --dest /data/live'
+    volumes:
+      - "./datas/acme.json:/data/acme.json:ro"
+      - "${CERTS_EXPORT_PATH}:/data"
