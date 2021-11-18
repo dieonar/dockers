@@ -1,0 +1,39 @@
+version: "3.9"
+
+networks:
+  network_mariadb:
+    name: network_mariadb
+  network_traefik:
+    external: true
+
+services:
+  mariadb:
+    image: mariadb
+    container_name: mariadb
+    command: --transaction-isolation=READ-COMMITTED --log-bin=ROW --innodb-read-only-compressed=OFF
+    restart: unless-stopped
+    volumes:
+      - ./datas/mariadb:/var/lib/mysql
+    environment:
+      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
+    networks:
+      - network_mariadb
+
+  phpmyadmin:
+    depends_on:
+      - mariadb
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: phpmyadmin
+    restart: unless-stopped
+    environment:
+      - PMA_HOST=mariadb
+      - MYSQL_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
+    labels:
+      traefik.enable: true
+      traefik.docker.network: network_traefik
+      traefik.http.routers.phpmyadmin.entrypoints: websecure
+      traefik.http.routers.phpmyadmin.rule: 'Host(`${PHPMYADMIN_DOMAIN_NAME}`)'
+      traefik.http.services.phpmyadmin.loadbalancer.server.port: 80
+    networks:
+      - network_traefik
+      - network_mariadb
