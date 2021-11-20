@@ -1,0 +1,26 @@
+version: "3.9"
+
+networks:
+    network_traefik:
+      external: true
+
+services:
+    portainer:
+      image: portainer/portainer-ce:latest
+      container_name: portainer
+      restart: unless-stopped
+      security_opt:
+        - no-new-privileges:true
+      networks:
+        - network_traefik
+      volumes:
+        - /etc/localtime:/etc/localtime:ro
+        - /var/run/docker.sock:/var/run/docker.sock:ro
+        - ./datas:/data
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=network_traefik"
+        - "traefik.http.routers.portainer-secure.entrypoints=websecure"
+        - "traefik.http.routers.portainer-secure.rule=Host(`${DOMAIN_NAME}`)"
+        - "traefik.http.routers.portainer-secure.service=portainer"
+        - "traefik.http.services.portainer.loadbalancer.server.port=9000"
