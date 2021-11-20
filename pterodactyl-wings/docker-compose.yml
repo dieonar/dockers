@@ -1,0 +1,48 @@
+version: '3.8'
+
+networks:
+  network_traefik:
+    external: true
+  wings0:
+    name: wings0
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "172.22.0.0/16"
+    driver_opts:
+      com.docker.network.bridge.name: wings0
+
+services:
+  wing:
+    container_name: pterodactyl_wing
+    image: ghcr.io/pterodactyl/wings:latest
+    restart: unless-stopped
+    networks:
+      - wings0
+      - network_traefik
+    ports:
+      - "8080:8080"
+      - "2022:2022"
+    tty: true
+    environment:
+      TZ: "Europe/Paris"
+      WINGS_UID: 988
+      WINGS_GID: 988
+      WINGS_USERNAME: pterodactyl
+      SERVERS_DATA_FULL_PATH: ${SERVERS_DATA_FULL_PATH}
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/var/lib/docker/containers/:/var/lib/docker/containers/"
+      - "/tmp/pterodactyl/:/tmp/pterodactyl/"
+      - "/etc/ssl/certs:/etc/ssl/certs:ro"
+      - "/etc/letsencrypt/:/etc/letsencrypt/"
+      - "./datas/etc/:/etc/pterodactyl/"
+      - "./datas/logs:/var/log/pterodactyl/"
+      - "${SERVERS_DATA_FULL_PATH}:${SERVERS_DATA_FULL_PATH}"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=network_traefik"
+      - "traefik.http.routers.pterodactyl-wings.rule=Host(`${WING_DOMAIN}`)"
+      - "traefik.http.routers.pterodactyl-wings.tls=true"
+      - "traefik.http.routers.pterodactyl-wings.tls.certresolver=letsencrypt"
+

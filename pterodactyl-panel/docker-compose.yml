@@ -1,0 +1,62 @@
+version: '3.9'
+
+networks:
+  network_traefik:
+    external: true
+  network_mariadb:
+    external: true
+  network_pterodactyl_internal:
+    internal: true
+
+services:
+  pterodactyl_redis:
+    container_name: pterodactyl_redis
+    image: redis:alpine
+    restart: unless-stopped
+    networks:
+      - network_pterodactyl_internal
+
+  pterodactyl_app2:
+    container_name: pterodactyl_panel
+    image: ghcr.io/pterodactyl/panel:latest
+    restart: unless-stopped
+    networks:
+      - network_pterodactyl_internal
+      - network_mariadb
+      - network_traefik
+    external_links:
+      - mariadb
+    links:
+      - pterodactyl_redis
+    volumes:
+      - "./datas/var/:/app/var/"
+      - "./datas/logs/:/app/storage/logs"
+      - "./datas/nginx/:/etc/nginx/conf.d/"
+      - "./datas/nginx-logs/:/var/log/nginx/"
+    environment:
+      #APP
+      APP_URL: "https://${DOMAIN_NAME}"
+      APP_TIMEZONE: "${APP_TIMEZONE}"
+      APP_SERVICE_AUTHOR: "${APP_SERVICE_AUTHOR}"
+      DB_PASSWORD: "${DB_PASSWORD}"
+      APP_ENV: "production"
+      APP_ENVIRONMENT_ONLY: "false"
+      CACHE_DRIVER: "redis"
+      SESSION_DRIVER: "redis"
+      QUEUE_DRIVER: "redis"
+      REDIS_HOST: "pterodactyl_redis"
+      DB_HOST: "mariadb"
+      TRUSTED_PROXIES: "*"
+      ## Mail Configuration
+      MAIL_FROM: "${MAIL_FROM}"
+      MAIL_DRIVER: "${MAIL_DRIVER}"
+      MAIL_HOST: "${MAIL_HOST}"
+      MAIL_PORT: "${MAIL_PORT}"
+      MAIL_USERNAME: "${MAIL_USERNAME}"
+      MAIL_PASSWORD: "${MAIL_PASSWORD}"
+      MAIL_ENCRYPTION: "${MAIL_ENCRYPTION}"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=network_traefik
+      - traefik.http.routers.pterodactyl.entrypoints=websecure
+      - traefik.http.routers.pterodactyl.rule=Host(`${DOMAIN_NAME}`)
